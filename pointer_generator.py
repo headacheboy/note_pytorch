@@ -13,7 +13,8 @@ def copy(vocab_dist, att_dist, p_gen, batch_enc_vocab):
 def dynamic_copy_loss(vocab_dist, ground_truth_idx, src_copy_tgt):
         # vocab_dist: [batch, tgt_len, gen_vocab+src_vocab], src_vocab is the maximum src length of these batch (this is why it call dynamic), gen_vocab is the size of generation vocabulary. This is the concatenation of generate vocabulary and attention score
         # ground_truth_idx: [batch, tgt_len], ground_truth_idx[b][i] is the idx of gen_vocab
-        # src_copy_tgt: [batch, tgt_len], src_copy_tgt[b][i] is the idx of src_vocab, if src_copy_tgt[b][i] == CONSTANT_PAD, it means that this token doesn't copy from source
+        # src_copy_tgt: [batch, tgt_len], src_copy_tgt[b][i] is the idx of src_vocab, which means that src_copy_tgt[b][i] <= src_vocab.
+	# if src_copy_tgt[b][i] == CONSTANT_PAD, it means that this token doesn't copy from source
         src_copy_tgt_mask = src_copy_tgt.ne(CONSTANT_PAD)
         src_copy_tgt_offset = src_copy_tgt.unsqueeze(2) + gen_vocab
         src_copy_prob = vocab_dist.gather(dim=2, index=src_copy_tgt_offset).squeeze(2).masked_fill(~src_copy_tgt_mask, 0)  # [batch, tgt_len]
