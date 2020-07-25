@@ -12,19 +12,34 @@ def copy(vocab_dist, att_dist, p_gen, batch_enc_vocab):
 
 def dynamic_copy_loss(vocab_dist, ground_truth_idx, src_copy_tgt):
         # vocab_dist: [batch, tgt_len, gen_vocab+src_vocab], src_vocab is the maximum src length of these batch (this is why it call dynamic), gen_vocab is the size of generation vocabulary. This is the concatenation of generate vocabulary and attention score
-        # ground_truth_idx: [batch, tgt_len], ground_truth_idx[b][i] is the idx of gen_vocab
+	# ground_truth_idx: [batch, tgt_len], ground_truth_idx[b][i] is the idx of gen_vocab
         # src_copy_tgt: [batch, tgt_len], src_copy_tgt[b][i] is the idx of src_vocab, which means that src_copy_tgt[b][i] <= src_vocab.
 	# if src_copy_tgt[b][i] == CONSTANT_PAD, it means that this token doesn't copy from source
         src_copy_tgt_mask = src_copy_tgt.ne(CONSTANT_PAD)
+	ground_truth_mask = ground_truth_idx.ne(CONSTANT_PAD) & ground_truth_idx.ne(CONSTANT_UNK)  # if ground_truth is <pad> or <unk>, the decode process must copy from source at this step
         src_copy_tgt_offset = src_copy_tgt.unsqueeze(2) + gen_vocab
         src_copy_prob = vocab_dist.gather(dim=2, index=src_copy_tgt_offset).squeeze(2).masked_fill(~src_copy_tgt_mask, 0)  # [batch, tgt_len]
         gen_prob = vocab_dist.gather(dim=2, index=ground_truth_idx.unsqueeze(2)).suqeeze(2)     # [batch, tgt_len]
-        final_prob = src_copy_prob + gen_prob.masked_fill(src_copy_tgt_mask, 0)                 
-                                              # the mask guarantees that copy and generate will not calculate the prob at the same time
-        tgt_pad_mask = ground_truth_idx.ne(CONSTANT_PAD)
+        final_prob = src_copy_prob + gen_prob.masked_fill(~ground_truth_mask, 0)                 
+                                              # the mask guarantees that generate <pad> or <unk> should not be consider when training
+        tgt_pad_mask = ground_truth_idx.ne(CONSTANT_PAD)  # tgt_pad_mask differs to ground_truth_mask, since <pad> should be ignored when calculate loss but <unk> should be taken into consideration
         loss = -final_prob.log().masked_fill(~tgt_pad_mask, 0)
         loss = loss.sum() / tgt_pad_mask.sum()
         return loss
+
+        #
+	# example: (batch=1), input=['hello', 'how', 'are', 'you', "pikachu", '<pad>'], output_vocab=["<pad>", "<unk>", "i", "am", "fine", "and", 'hello', 'how', 'are', 'you']
+	# ground_truth_output = ["i", "am", "fine", "and", "you", "<unk>"(should be "pikachu" but output_vocab do, "<pad>"]
+	# then ground_truth_idx=[2, 3, 4, 5, 9, 1, 0], src_copy_tgt=[-1, -1, -1, -1, 3, 4, 5]
+	# vocab_dist.shape=[1, 15]
+	# gen_vocab=10
+	# src_cop_tgt_mask = [0, 0, 0, 0, 1, 1, 1]
+	# ground_truth_mask = [1, 1, 1, 1, 1, 0, 0]
+	# tgt_pad_mask = [1, 1, 1, 1, 1, 1, 0]
+	# for token "you", the prob is gen_prob[4] + src_copy_prob[4], for token "pikachu", gen_prob[5] = 0
+	# for <pad>, it is masked when calculating loss
+	# for other token, src_copy_prob[i] = 0
+	#
 	
 	
 	
