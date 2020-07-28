@@ -52,3 +52,13 @@ def gather_usage(a, b, c):
 	
 
 # gather, scatter_add functions are important but hard to remember. Please refer to docs when you have problems in dealing with particular problems
+
+def label2onehot(label, vocab_size):
+	# label: [batch, seq_len], label[i][j]=k means the i-th batch and the j-th token is the k-th vocab index
+	# we want to change it to onehot vector: [batch, seq_len, vocab_size]
+	# we use scatter
+	batch, seq_len = label.shape
+	onehot = torch.zeros(batch, seq_len, vocab_size)
+	label = label.unsqueeze(2)
+	onehot.scatter_(dim=2, index=label, src=1)
+	# scatter with dim=2: self[i][j][index[i][j][k]] = src[i][j][k], here src[i][j][k] is always 1. Therefore, self[i][j][k] = 1 (recall that label[i][j][1]=k)
